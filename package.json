@@ -52,6 +52,7 @@
   },
   "repository": "https://github.com/google-ar/three.ar.js",
   "dependencies": {
-    "gl-preserve-state": "^1.0.0"
+    "gl-preserve-state": "^1.0.0",
+    "roslib": "^0.18.0"
   }
 }
