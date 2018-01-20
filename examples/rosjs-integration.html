@@ -75,17 +75,45 @@
             height: 20px;
             width: 100%;
         }
-        div#rgbTrigger{
+
+        div#rgbTrigger {
             border: 1px solid black;
             height: 50px;
             width: 50px;
-            left:50%
+            left: 50%
             background-color: red;
             position: absolute;
             z-index: 200000;
         }
-        div#rgbTrigger.stable{
+
+        div#rgbTrigger.stable {
             background-color: green;
+        }
+
+        div#motionControl_Pan {
+            border: 1px solid black;
+            width: 300px;
+            height: 140px;
+            z-index: 200000;
+        }
+
+        #motionControl_Pan input {
+            float: left;
+        }
+
+        .center-div {
+            position: absolute;
+            margin: auto;
+            /*top: 0;*/
+            right: 0;
+            bottom: 50px;
+            left: 0;
+            background-color: #ccc;
+            border-radius: 3px;
+        }
+        button.motion-request{
+            width:80px;
+            height:80px;
         }
 
         .ros-blink {
@@ -112,6 +140,13 @@
 </div>
 <div id="messages"></div>
 <div id="rgbTrigger"></div>
+<div id="motionControl_Pan" class="center-div">
+    <span>
+        <button class="motion-request" id="motionControl_Pan_left"><<</button>
+        <button class="motion-request" id="motionControl_Pan_right">>></button>
+    </span>
+    <input type="text" id="motion_Control_Pan_Distance" value="5">
+</div>
 <audio id="beep" src="../third_party/sound/beep-07.wav"></audio>
 <script src="../third_party/eventemitter2/lib/eventemitter2.js"></script>
 <script src="../third_party/roslib/roslib.js"></script>
@@ -131,29 +166,38 @@
 
 
     var rosBridge = new ROSLIB.Ros();
-    var rosPoseStampedTopic;    //uninitialized until we've made the connection
-    var rosSensorImageTopic;    //uninitialized until we've made the connection
-    var rosMotionEventStableTopic;   //uninitialized until we've made the connection
+    var rosArCorePoseStampedPublisher;        //uninitialized until we've made the connection
+    var rosSensorImageTopic;        //uninitialized until we've made the connection
+    var rosMotionEventStableTopic;  //uninitialized until we've made the connection
+    var rosMotionControlAckTopic;      //uninitialized until we've made the connection
+    var rosMotionControlStatusTopic;      //uninitialized until we've made the connection
+    var rosMotionControlPositionTopic;      //uninitialized until we've made the connection
+    var rosMotionControlRequestPublisher;      //uninitialized until we've made the connection
     var motionStateStable = undefined;
     var beepSound = document.getElementById('beep');
 
     //todo, move this into a factory/controller
+    var motionControManager = {
+        numberRequestsMade: 0
+    };
+
     var motionStateManager = {
+
         update: function (isStable) {
             this.motionStateStable = isStable;
             this.updateUi();
         },
         docEl: undefined,
-        bind: function(el){
-         this.docEl = el;
-         this.docEl.onclick = function(that){
-                return function(){
+        bind: function (el) {
+            this.docEl = el;
+            this.docEl.onclick = function (that) {
+                return function () {
                     that.grabRGB()
                 };
             }(this)
         },
         updateUi: function () {
-            if (!this.renderCanvas){
+            if (!this.renderCanvas) {
                 this.renderCanvas = document.querySelector('canvas.auto-generated-canvas')
             }
             if (this.docEl) {
@@ -168,26 +212,26 @@
                 }
             }
         },
-        grabRGB: function(){
-            if (!this.renderCanvas){
+        grabRGB: function () {
+            if (!this.renderCanvas) {
                 console.warn("cannot grab RGB frame with no canvas");
                 return;
             }
 
-            if (!this.motionStateStable){
+            if (!this.motionStateStable) {
                 console.warn("grabbing RGB disabled when state not stable");
                 return;
             }
 
-                //an attempt to get the pixel data directly from the gl canvas
-                gl = this.renderCanvas.getContext('webgl');
-                this.rgbWidth = gl.drawingBufferWidth;
-                this.rgbHeight = gl.drawingBufferHeight;
+            //an attempt to get the pixel data directly from the gl canvas
+            gl = this.renderCanvas.getContext('webgl');
+            this.rgbWidth = gl.drawingBufferWidth;
+            this.rgbHeight = gl.drawingBufferHeight;
 
-                this.RgbaPixels = new Uint8Array(this.rgbWidth * this.rgbHeight * 4);
-                renderer.render(scene, camera);
-                gl.readPixels(0, 0, this.rgbWidth, this.rgbHeight , gl.RGBA, gl.UNSIGNED_BYTE, this.RgbaPixels);
-                beepSound.play();
+            this.RgbaPixels = new Uint8Array(this.rgbWidth * this.rgbHeight * 4);
+            renderer.render(scene, camera);
+            gl.readPixels(0, 0, this.rgbWidth, this.rgbHeight, gl.RGBA, gl.UNSIGNED_BYTE, this.RgbaPixels);
+            beepSound.play();
 
         },
         motionStateStable: undefined
@@ -195,6 +239,28 @@
 
     motionStateManager.bind(document.querySelector("div#rgbTrigger"));
 
+    function motionClick (e) {
+
+        if (rosMotionControlRequestPublisher && rosBridge.isConnected){
+            var motionRequestMessage  = {
+                header: {
+                    seq:motionControManager.numberRequestsMade++,
+                    stamp: getRosTimeComponent()
+                },
+                vector:{
+                    x:parseFloat((e.currentTarget.id.split("_")[2]==="right"? "":"-") + document.getElementById("motion_Control_Pan_Distance").value),
+                    y:0,
+                    z:0
+                }
+            };
+            console.log("About to submit Message:", motionRequestMessage);
+            rosMotionControlRequestPublisher.publish(motionRequestMessage)
+        }
+    }
+
+    document.querySelectorAll('button.motion-request').forEach(function(item, idx, arr){
+        item.onclick = motionClick;
+    });
 
     rosBridge.on('error', function (error) {
         console.error(error);
@@ -204,23 +270,23 @@
         console.log("ros bridge connection closed");
     });
     rosBridge.on('connection', function () {
-        console.log("ros bridge connected successfully...")
+        console.log("ros bridge connected successfully...");
         //create the Stamped Pose Topic with the appropriate connection and type
-        rosPoseStampedTopic = new ROSLIB.Topic({
+        rosArCorePoseStampedPublisher = new ROSLIB.Topic({
                 ros: rosBridge,
                 name: '/lighthouse/1/pose',
                 messageType: 'geometry_msgs/PoseStamped'
             }
         );
 
-        //create the sensore Image Topic with the appropriate connection and type
+        //create the sensor Image Topic with the appropriate connection and type
         rosSensorImageTopic = new ROSLIB.Topic({
             ros: rosBridge,
             name: '/arCore/1/image',
             messageType: 'sensor_msgs/Image'
         });
 
-        //create the bool values that the system will inform us to unlock the camera trigger
+        //create the platform Stable (not moving) bool values that the system will inform us to unlock the camera trigger
         rosMotionEventStableTopic = new ROSLIB.Topic({
             ros: rosBridge,
             name: '/motionEvents/Stable',
@@ -232,6 +298,41 @@
             motionStateManager.update(message.data);
 
         });
+
+        rosMotionControlAckTopic = new ROSLIB.Topic({
+            ros: rosBridge,
+            name: '/motionControl/Ack',
+            messageType: 'std_msgs/String'
+        });
+
+        rosMotionControlAckTopic.subscribe(function (message) {
+            console.log("congratulations: '" + message.data + "'")
+        });
+
+        rosMotionControlStatusTopic = new ROSLIB.Topic({
+            ros: rosBridge,
+            name: '/motionControl/Status',
+            messageType: 'std_msgs/String'
+        });
+        rosMotionControlStatusTopic.subscribe(function (message) {
+            console.log(message)
+        });
+
+        rosMotionControlPositionTopic = new ROSLIB.Topic({
+            ros: rosBridge,
+            name: '/motionControl/Position',
+            messageType: 'geometry_msgs/Vector3Stamped'
+        });
+        rosMotionControlPositionTopic.subscribe(function (message) {
+            console.log(message)
+        });
+
+        rosMotionControlRequestPublisher = new ROSLIB.Topic({
+            ros: rosBridge,
+            name: '/motionControl/Request',
+            messageType: 'geometry_msgs/Vector3Stamped'
+        });
+
 
         // if this isn't a reconnect, initialize the augmented reality display
         if (!vrDisplay) {
@@ -326,7 +427,7 @@
 
                 }
             };
-            rosPoseStampedTopic.publish(payload);
+            rosArCorePoseStampedPublisher.publish(payload);
         }
     };
 
