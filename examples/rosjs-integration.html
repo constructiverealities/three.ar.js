@@ -17,7 +17,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>three.ar.js - Boilerplate</title>
+    <title>Contstructive Realities - Control Center</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no,
   minimum-scale=1.0, maximum-scale=1.0">
@@ -71,9 +71,12 @@
         }
 
         div#messages {
+            position: absolute;
             border: 1px solid black;
-            height: 20px;
+            height: 40%;
             width: 100%;
+            bottom:0;
+            z-index: 11;
         }
 
         div#rgbTrigger {
@@ -83,7 +86,6 @@
             left: 50%
             background-color: red;
             position: absolute;
-            z-index: 200000;
         }
 
         div#rgbTrigger.stable {
@@ -94,11 +96,60 @@
             border: 1px solid black;
             width: 300px;
             height: 140px;
-            z-index: 200000;
+        }
+
+        div#nipple-box{
+            /*display:block;*/
+            position: absolute;
+            border: 1px solid black;
+            border-radius: 5px;
+            width: 100px;
+            height: 100px;
+            margin-left: -50px;
+            /*margin: auto;*/
+            left:50%;
+            bottom:80px;
+        }
+
+        .status-font{
+            color: darkgrey;
         }
 
         #motionControl_Pan input {
             float: left;
+        }
+
+        .button {
+            -webkit-border-radius: 2;
+            -moz-border-radius: 2;
+            background: #3498db;
+            border: none;
+            border-radius: 2px;
+            color: #ffffff;
+            font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+            font-size: 15px;
+            padding: 8px 16px;
+            text-decoration: none;
+        }
+
+        .button:hover {
+            background: #3cb0fd;
+            background-image: -webkit-linear-gradient(top, #3cb0fd, #3498db);
+            background-image: -moz-linear-gradient(top, #3cb0fd, #3498db);
+            background-image: -ms-linear-gradient(top, #3cb0fd, #3498db);
+            background-image: -o-linear-gradient(top, #3cb0fd, #3498db);
+            background-image: linear-gradient(to bottom, #3cb0fd, #3498db);
+            text-decoration: none;
+        }
+
+        .button i {
+            font-size: 1.1rem;
+            line-height: 1.5rem;
+            margin-right: 0.15rem;
+        }
+        .always-on-top{
+            z-index: 11;
+            position: absolute;
         }
 
         .center-div {
@@ -111,6 +162,7 @@
             background-color: #ccc;
             border-radius: 3px;
         }
+
         button.motion-request{
             width:80px;
             height:80px;
@@ -132,24 +184,40 @@
         }
 
     </style>
-
+    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
 </head>
 <body>
-<div id="info">
-    <a href="https://github.com/google-ar/three.ar.js">three.ar.js</a><span class="title">Boilerplate scene</span>
+<div id="3d-container">
+
 </div>
-<div id="messages"></div>
-<div id="rgbTrigger"></div>
-<div id="motionControl_Pan" class="center-div">
-    <span>
-        <button class="motion-request" id="motionControl_Pan_left"><<</button>
-        <button class="motion-request" id="motionControl_Pan_right">>></button>
-    </span>
-    <input type="text" id="motion_Control_Pan_Distance" value="5">
+<div id="messages">
+    <pre class="status-font">
+
+    </pre>
 </div>
+<div id="rgbTrigger" class="always-on-top"></div>
+<div id="controls-container" class="always-on-top">
+    <button class="button start" href=""><i class="ion-play"></i> <span>Start</span></button>
+    <button class="button start" href=""><i class="ion-pause"></i> <span>Pause</span></button>
+    <button class="button stop" href=""><i class="ion-stop"></i> <span>Stop</span></button>
+    <button class="button map" href=""><i class="ion-map"></i> <span>Trigger New Map</span></button>
+    <button class="button backup" href=""><i class="ion-filing"></i> <span>Backup</span></button>
+</body>
+</div>
+<div id="nipple-box" style="">
+
+</div>
+<!--<div id="motionControl_Pan" class="center-div always-on-top">-->
+    <!--<span>-->
+        <!--<button class="motion-request" id="motionControl_Pan_left"><<</button>-->
+        <!--<button class="motion-request" id="motionControl_Pan_right">>></button>-->
+    <!--</span>-->
+    <!--<input type="range" max="300" min="1" step="10" id="motion_Control_Pan_Distance" value="5">-->
+<!--</div>-->
 <audio id="beep" src="../third_party/sound/beep-07.wav"></audio>
 <script src="../third_party/eventemitter2/lib/eventemitter2.js"></script>
 <script src="../third_party/roslib/roslib.js"></script>
+<script src="../third_party/nipplejs/nipplejs.js"></script>
 <script src="../third_party/constructiverealities/rosTime.js"></script>
 <script src="../third_party/three.js/three.js"></script>
 <script src="../third_party/three.js/VRControls.js"></script>
@@ -239,6 +307,36 @@
 
     motionStateManager.bind(document.querySelector("div#rgbTrigger"));
 
+    var radius = 100;
+
+    var sampleJoystick = {
+        zone:document.getElementById("nipple-box"),
+        mode: 'static',
+        position: {
+            left: '50%',
+            top: '50%'
+        },
+        size: radius*2,
+        color: 'red'
+    };
+
+    var joystick;
+    var position;
+    joystick = nipplejs.create(sampleJoystick);
+    joystick.on('start end', function(evt, data) {
+        position = data;
+    }).on('move', function(evt, data) {
+        position = data;
+    }).on('dir:up plain:up dir:left plain:left dir:down' +
+        'plain:down dir:right plain:right',
+        function(evt, data) {
+            //position=data;
+        }
+    ).on('pressure', function(evt, data) {
+        position=data;
+    });
+
+
     function motionClick (e) {
 
         if (rosMotionControlRequestPublisher && rosBridge.isConnected){
@@ -264,7 +362,7 @@
 
     rosBridge.on('error', function (error) {
         console.error(error);
-        debugger;
+//        debugger;
     });
     rosBridge.on('close', function () {
         console.log("ros bridge connection closed");
@@ -375,7 +473,7 @@
         renderer.autoClear = false;
         canvas = renderer.domElement;
         canvas.classList.add('auto-generated-canvas');
-        document.body.appendChild(canvas);
+        document.getElementById("3d-container").appendChild(canvas);
         scene = new THREE.Scene();
 
         // Creating the ARView, which is the object that handles
