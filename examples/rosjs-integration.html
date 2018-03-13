@@ -184,7 +184,7 @@
         }
 
     </style>
-    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <!-- <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css"> -->
 </head>
 <body>
 <div id="3d-container">
@@ -197,11 +197,15 @@
 </div>
 <div id="rgbTrigger" class="always-on-top"></div>
 <div id="controls-container" class="always-on-top">
-    <button class="button start" href=""><i class="ion-play"></i> <span>Start</span></button>
-    <button class="button start" href=""><i class="ion-pause"></i> <span>Pause</span></button>
-    <button class="button stop" href=""><i class="ion-stop"></i> <span>Stop</span></button>
-    <button class="button map" href=""><i class="ion-map"></i> <span>Trigger New Map</span></button>
-    <button class="button backup" href=""><i class="ion-filing"></i> <span>Backup</span></button>
+    <button class="map-control button start" href="" data-action="play"><i class="ion-play"></i> <span>Start</span></button>
+    <button class="map-control button pause" href="" data-action="pause"><i class="ion-pause"></i> <span>Pause</span></button>
+    <button class="map-control button stop" href="" data-action="stop"><i class="ion-stop"></i> <span>Stop</span></button>
+    <button class="map-control button map" href="" data-action="new"><i class="ion-map"></i> <span>Trigger New Map</span></button>
+    <button class="map-control button backup" href="" data-action="save"><i class="ion-filing"></i> <span>Backup</span></button>
+</div>
+<div id="camera-controls-container" class="always-on-top">
+    <button class="camera-control button take-picture" href="" data-action="take-picture"><i class="ion-filing"></i> <span>Photo</span></button>
+</div>
 </body>
 </div>
 <div id="nipple-box" style="">
@@ -241,6 +245,7 @@
     var rosMotionControlStatusTopic;      //uninitialized until we've made the connection
     var rosMotionControlPositionTopic;      //uninitialized until we've made the connection
     var rosMotionControlRequestPublisher;      //uninitialized until we've made the connection
+    var rosMotionControlJobPublisher;
     var motionStateStable = undefined;
     var beepSound = document.getElementById('beep');
 
@@ -306,6 +311,52 @@
     };
 
     motionStateManager.bind(document.querySelector("div#rgbTrigger"));
+
+mappingFunctions = {
+    "start":function(rosConnection){
+
+    },
+    "pause": function(rosConnection){
+
+    },
+    "stop": function(rosConnection){
+
+    },
+    "new": function(rosConnection){
+
+    },
+    "backup": function(rosConnection){
+
+    }
+};
+
+cameraFunctions = {
+    "take-picture": function(rosConnection){
+
+    }    
+};
+
+
+motinoFunctions = {
+    
+}
+
+    (function bindMappingControls(){
+        mappingButtons = document.querySelectorAll('button.map-control')
+        mappingButtons.forEach(function(item, idx, arr){
+            console.log (item.getAttribute("data-action"))
+            item.addEventListener("click", function(){
+                console.log ("Woot!");
+            })
+            
+        })
+
+        cameraButtons = document.querySelectorAll('button.camera-control')
+        cameraButtons.forEach(function(item, idx, arr){
+            console.log(item.getAttribute('data-action'))
+
+        })
+    }());
 
     var radius = 100;
 
@@ -429,6 +480,12 @@
             ros: rosBridge,
             name: '/motionControl/Request',
             messageType: 'geometry_msgs/Vector3Stamped'
+        });
+
+        rosMotionControlJobPublisher = new ROSLIB.Topic({
+            ros:rosBridge,
+            name: '/motionControl/Job/Submit',
+            messageType: 'std_msgs/String'
         });
 
 
